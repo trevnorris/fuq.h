@@ -30,10 +30,10 @@ extern "C" {
   #include <winnt.h>
   #define FUQ_MEM_BAR() MemoryBarrier()
 #else
-  #error "System lacks hardware memory barrier support"
+  #error "Hardware memory barrier support not implemented on this system"
 #endif
 
-/* simplify check if OOM */
+/* Simplify check if OOM */
 #define FUQ_CHECK_OOM(pntr)                                                   \
   do {                                                                        \
     if (NULL == (pntr)) {                                                     \
@@ -70,11 +70,11 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   FUQ_MEM_BAR();
 
   if (tail_stor == queue->head_stor) {
-    array = (fuq__array*) (malloc(sizeof(*array)));
+    array = (fuq__array*) malloc(sizeof(*array));
     FUQ_CHECK_OOM(array);
   } else {
     array = queue->head_stor;
-    queue->head_stor = (fuq__array*) ((*array)[1]);
+    queue->head_stor = (fuq__array*) (*array)[1];
     queue->max_stor -= 1;
   }
 
@@ -84,7 +84,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
 
 static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   if (FUQ_MAX_STOR > queue->max_stor) {
-    free((void*) (array));
+    free((void*) array);
     return;
   }
 
@@ -101,9 +101,9 @@ static inline void fuq_init(fuq_queue* queue) {
   fuq__array* array;
   fuq__array* stor;
 
-  array = (fuq__array*) (malloc(sizeof(*array)));
+  array = (fuq__array*) malloc(sizeof(*array));
   FUQ_CHECK_OOM(array);
-  stor = (fuq__array*) (malloc(sizeof(*stor)));
+  stor = (fuq__array*) malloc(sizeof(*stor));
   FUQ_CHECK_OOM(stor);
   /* Initialize in case fuq_dispose() is called immediately after fuq_init(). */
   (*stor)[1] = NULL;
@@ -130,18 +130,18 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
     FUQ_MEM_BAR();
-    queue->tail = (void**) (tail);
+    queue->tail = (void**) tail;
     return;
   }
 
   array = fuq__alloc_array(queue);
-  (*queue->tail_array)[queue->tail_idx] = (void*) (array);
+  (*queue->tail_array)[queue->tail_idx] = (void*) array;
   queue->tail_array = array;
   queue->tail_idx = 0;
 
   tail = &(**array);
   FUQ_MEM_BAR();
-  queue->tail = (void**) (tail);
+  queue->tail = (void**) tail;
 }
 
 
@@ -163,7 +163,7 @@ static inline void* fuq_shift(fuq_queue* queue) {
   if (FUQ_ARRAY_SIZE > queue->head_idx)
     return ret;
 
-  next_array = (fuq__array*) (*queue->head);
+  next_array = (fuq__array*) *queue->head;
   fuq__free_array(queue, queue->head_array);
   queue->head = &(**next_array);
   queue->head_array = next_array;
@@ -179,24 +179,23 @@ static inline void fuq_dispose(fuq_queue* queue) {
 
   while (queue->head_array != queue->tail_array) {
     next_array = (*queue->head_array)[FUQ_ARRAY_SIZE];
-    free((void*) (queue->head_array));
+    free((void*) queue->head_array);
     queue->head_array = (fuq__array*) next_array;
   }
 
-  free((void*) (queue->head_array));
+  free((void*) queue->head_array);
 
   if (NULL == queue->head_stor)
     return;
 
   do {
     next_array = (*queue->head_stor)[1];
-    free((void*) (queue->head_stor));
+    free((void*) queue->head_stor);
     queue->head_stor = (fuq__array*) next_array;
   } while (NULL != next_array);
 }
 
 
-#undef FUQ_GCC_VERSION
 #undef FUQ_ARRAY_SIZE
 #undef FUQ_MAX_STOR
 #undef FUQ_MEM_BAR
