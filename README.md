@@ -84,10 +84,10 @@ confusion that the queue is empty.
 
 ##### `void fuq_dispose(fuq_queue* queue)`
 
-Frees all allocated slabs and removes all stored pointers. The moment this
-function runs the queue should be considered uninitialized, and no other pulls
-or shifts should be run on the queue. Though the queue is not fully
-uninitialized until the function returns.
+Frees all allocated slabs _and_ stored pointers. The moment this function runs
+the queue should be considered uninitialized, and no other pulls or shifts
+should be run on the queue. Though the queue is not fully uninitialized until
+the function returns.
 
 
 ## Example
