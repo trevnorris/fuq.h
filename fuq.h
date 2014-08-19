@@ -23,8 +23,7 @@ extern "C" {
 #define FUQ_MAX_STOR 1024
 
 /* hardware memory barrier */
-/* TODO: Check gcc version >= 4.4.0 */
-#if defined(__GNUC__)
+#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
   #define FUQ_MEM_BAR() __sync_synchronize()
 #elif defined(_MSC_VER)
   #include <winnt.h>
