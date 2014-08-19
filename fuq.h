@@ -23,7 +23,10 @@ extern "C" {
 #define FUQ_MAX_STOR 1024
 
 /* hardware memory barrier */
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
+#if defined (__APPLE__)
+  #include <libkern/OSAtomic.h>
+  #define fuqMemoryBarrier() OSMemoryBarrier()
+#elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
   #define fuqMemoryBarrier() __sync_synchronize()
 #elif defined(_MSC_VER)
   #include <winnt.h>
