@@ -15,7 +15,9 @@ pthread_t thread;
 
 
 static void* task_runner(void* arg) {
-  for (size_t i = 1; i < ITER; i++) {
+  size_t i;
+
+  for (i = 1; i < ITER; i++) {
     fuq_push(&queue, (void*) i);
   }
   return NULL;
@@ -26,11 +28,12 @@ int main(void) {
   uint64_t sum = 0;
   uint64_t check = 0;
   void* tmp;
+  size_t i;
 
   fuq_init(&queue);
   assert(pthread_create(&thread, NULL, task_runner, NULL) == 0);
 
-  for (size_t i = 1; i < ITER; i++) {
+  for (i = 1; i < ITER; i++) {
     check += i;
     if (NULL != (tmp = fuq_shift(&queue)))
       sum += (uint64_t) tmp;
@@ -48,4 +51,6 @@ int main(void) {
   assert(sum == check);
 
   fuq_dispose(&queue);
+
+  return 0;
 }
