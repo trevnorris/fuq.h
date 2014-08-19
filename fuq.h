@@ -19,9 +19,6 @@ extern "C" {
 #include <stdlib.h>  /* malloc, free */
 #include <stdio.h>   /* fprintf, fflush */
 
-#define FUQ_ARRAY_SIZE 511
-#define FUQ_MAX_STOR 1024
-
 /* hardware memory barrier */
 #if defined (__APPLE__)
   #include <libkern/OSAtomic.h>
@@ -44,6 +41,9 @@ extern "C" {
       abort();                                                                \
     }                                                                         \
   } while (0)
+
+#define FUQ_ARRAY_SIZE 511
+#define FUQ_MAX_STOR 1024
 
 /* The last slot is reserved as a pointer to the next fuq__array. */
 typedef void* fuq__array[FUQ_ARRAY_SIZE + 1];
@@ -198,10 +198,10 @@ static inline void fuq_dispose(fuq_queue* queue) {
 }
 
 
-#undef FUQ_ARRAY_SIZE
-#undef FUQ_MAX_STOR
 #undef fuqMemoryBarrier
 #undef fuqCheckOOM
+#undef FUQ_ARRAY_SIZE
+#undef FUQ_MAX_STOR
 
 #ifdef __cplusplus
 }
