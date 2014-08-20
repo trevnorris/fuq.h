@@ -55,10 +55,10 @@ typedef struct {
   int tail_idx;
   /* These are key to allowing single atomic operations. */
   void** head;
-  void** tail;
+  volatile void** tail;
   /* Storage containers for unused allocations. */
   fuq__array* head_stor;
-  fuq__array* tail_stor;
+  volatile fuq__array* tail_stor;
   /* Number of fuq__array's currently stored. */
   int max_stor;
 } fuq_queue;
@@ -66,12 +66,12 @@ typedef struct {
 
 static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   fuq__array* array;
-  fuq__array* tail_stor;
+  volatile fuq__array* tail_stor;
 
   tail_stor = queue->tail_stor;
   fuqMemoryBarrier();
 
-  if (tail_stor == queue->head_stor) {
+  if ((fuq__array*) tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
     fuqCheckOOM(array);
   } else {
@@ -95,7 +95,7 @@ static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   queue->max_stor += 1;
 
   fuqMemoryBarrier();
-  queue->tail_stor = array;
+  queue->tail_stor = (volatile fuq__array*) array;
 }
 
 
@@ -115,9 +115,9 @@ static inline void fuq_init(fuq_queue* queue) {
   queue->head_idx = 0;
   queue->tail_idx = 0;
   queue->head = &(**array);
-  queue->tail = &(**array);
+  queue->tail = (volatile void**) &(**array);
   queue->head_stor = stor;
-  queue->tail_stor = stor;
+  queue->tail_stor = (volatile fuq__array*) stor;
   queue->max_stor = 0;
 }
 
@@ -132,7 +132,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
     fuqMemoryBarrier();
-    queue->tail = (void**) tail;
+    queue->tail = (volatile void**) tail;
     return;
   }
 
@@ -143,19 +143,19 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
 
   tail = &(**array);
   fuqMemoryBarrier();
-  queue->tail = (void**) tail;
+  queue->tail = (volatile void**) tail;
 }
 
 
 static inline void* fuq_shift(fuq_queue* queue) {
   fuq__array* next_array;
-  void** tail;
+  volatile void** tail;
   void* ret;
 
   tail = queue->tail;
   fuqMemoryBarrier();
 
-  if (queue->head == tail)
+  if (queue->head == (void**) tail)
     return NULL;
 
   ret = *queue->head;
