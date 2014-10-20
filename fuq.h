@@ -9,8 +9,8 @@
  * and receives NULL. Indicating that the queue is empty.
  */
 
-#ifndef NUB_FUQ_H_
-#define NUB_FUQ_H_
+#ifndef FUQ_H_
+#define FUQ_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -210,4 +210,4 @@ static inline void fuq_dispose(fuq_queue* queue) {
 #ifdef __cplusplus
 }
 #endif
-#endif  /* NUB_FUQ_H_ */
+#endif  /* FUQ_H_ */
