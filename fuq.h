@@ -19,6 +19,10 @@ extern "C" {
 #include <stdlib.h>  /* malloc, free */
 #include <stdio.h>   /* fprintf, fflush */
 
+#if defined (__STRICT_ANSI__) || defined (__GNUC_GNU_INLINE__)
+  #define inline __inline__
+#endif
+
 /* hardware memory barrier */
 #if defined (__APPLE__)
   #include <libkern/OSAtomic.h>
