@@ -20,20 +20,20 @@ extern "C" {
 #include <stdio.h>   /* fprintf, fflush */
 
 #if defined (__STRICT_ANSI__) || defined (__GNUC_GNU_INLINE__)
-  #define inline __inline__
+# define inline __inline__
 #endif
 
 /* hardware memory barrier */
 #if defined (__APPLE__)
-  #include <libkern/OSAtomic.h>
-  #define fuqMemoryBarrier() OSMemoryBarrier()
+# include <libkern/OSAtomic.h>
+# define fuqMemoryBarrier() OSMemoryBarrier()
 #elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-  #define fuqMemoryBarrier() __sync_synchronize()
+# define fuqMemoryBarrier() __sync_synchronize()
 #elif defined(_MSC_VER)
-  #include <winnt.h>
-  #define fuqMemoryBarrier() MemoryBarrier()
+# include <winnt.h>
+# define fuqMemoryBarrier() MemoryBarrier()
 #else
-  #error "Hardware memory barrier support not implemented on this system"
+# error "Hardware memory barrier support not implemented on this system"
 #endif
 
 #define FUQ_ARRAY_SIZE 511

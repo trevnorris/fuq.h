@@ -1,5 +1,5 @@
 /**
- * Compiled using: -g -Wall -pthread -o sporadic -O3 sporadic.c
+ * Compiled using: -g -Wall -pthread --std=gnu89 -o sporadic -O3 sporadic.c
  */
 
 #include "../fuq.h"
