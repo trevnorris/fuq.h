@@ -36,16 +36,6 @@ extern "C" {
   #error "Hardware memory barrier support not implemented on this system"
 #endif
 
-/* Simplify check if OOM */
-#define fuqCheckOOM(pntr)                                                     \
-  do {                                                                        \
-    if (NULL == (pntr)) {                                                     \
-      fprintf(stderr, "FATAL: OOM - %s:%i\n", __FILE__, __LINE__);            \
-      fflush(stderr);                                                         \
-      abort();                                                                \
-    }                                                                         \
-  } while (0)
-
 #define FUQ_ARRAY_SIZE 511
 #define FUQ_MAX_STOR 1024
 
@@ -68,6 +58,15 @@ typedef struct {
 } fuq_queue;
 
 
+static inline void fuq__check_oom(void* pntr) {
+  if (NULL != pntr)
+    return;
+  fprintf(stderr, "FATAL: OOM - %s:%i\n", __FILE__, __LINE__);
+  fflush(stderr);
+  abort();
+}
+
+
 static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   fuq__array* array;
   volatile fuq__array* tail_stor;
@@ -77,7 +76,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
-    fuqCheckOOM(array);
+    fuq__check_oom(array);
   } else {
     array = queue->head_stor;
     queue->head_stor = (fuq__array*) (*array)[1];
@@ -108,9 +107,9 @@ static inline void fuq_init(fuq_queue* queue) {
   fuq__array* stor;
 
   array = (fuq__array*) malloc(sizeof(*array));
-  fuqCheckOOM(array);
+  fuq__check_oom(array);
   stor = (fuq__array*) malloc(sizeof(*stor));
-  fuqCheckOOM(stor);
+  fuq__check_oom(stor);
   /* Initialize in case fuq_dispose() is called immediately after fuq_init(). */
   (*stor)[1] = NULL;
 
@@ -203,7 +202,6 @@ static inline void fuq_dispose(fuq_queue* queue) {
 
 
 #undef fuqMemoryBarrier
-#undef fuqCheckOOM
 #undef FUQ_ARRAY_SIZE
 #undef FUQ_MAX_STOR
 
