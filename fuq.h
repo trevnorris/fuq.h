@@ -178,6 +178,16 @@ static inline void* fuq_shift(fuq_queue* queue) {
 }
 
 
+static inline int fuq_empty(fuq_queue* queue) {
+  volatile void** tail;
+
+  tail = queue->tail;
+  fuqMemoryBarrier();
+
+  return queue->head == (void**) tail;
+}
+
+
 /* Useful for cleanup at end of applications life to make valgrind happy. */
 static inline void fuq_dispose(fuq_queue* queue) {
   void* next_array;

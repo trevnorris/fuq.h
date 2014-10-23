@@ -44,8 +44,8 @@ int main(void) {
 
   assert(pthread_join(thread, NULL) == 0);
 
-  while (NULL != (tmp = fuq_shift(&queue)))
-    sum += (uint64_t) tmp;
+  while (!fuq_empty(&queue))
+    sum += (uint64_t) fuq_shift(&queue);
 
   fprintf(stderr, "sum:   %zi\n", sum);
   assert(sum == check);
