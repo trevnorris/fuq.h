@@ -23,18 +23,21 @@ extern "C" {
 # define inline __inline__
 #endif
 
-/* hardware memory barrier */
-#if defined (__APPLE__)
-# include <libkern/OSAtomic.h>
-# define fuq__read_barrier() OSMemoryBarrier()
+/* Use lfence for x86 and x86_64 architectures */
+#if defined(__i386) || defined(_M_IX86) || \
+    defined(__x86_64__) || defined(_M_X64)
+# define fuq__read_barrier() __asm__ __volatile__ ("lfence":::"memory")
+/* arm64 supports proper lfence */
+#elif defined(__aarch64__)
+# define fuq__read_barrier() __asm__ __volatile__ ("dmb ishld":::"memory")
+/* Support for power */
+#elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__) || \
+      defined(__powerpc64__) || defined(__ppc64__) || defined(__PPC64__)
+void fuq__read_barrier(void);
+#pragma mc_func fuq__read_barrier  { "7c2004ac" }  /* lwsync */
+/* Otherwise try using compiler defined */
 #elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-/* Prefer assembly to prevent full memory barrier */
-# if defined( __i386__ ) || defined( __i486__ ) || defined( __i586__ ) || \
-     defined( __i686__ ) || defined( __x86_64__ )
-#   define fuq__read_barrier() __asm__ __volatile__ ("lfence":::"memory")
-# else
-#   define fuq__read_barrier() __sync_synchronize()
-# endif
+# define fuq__read_barrier() __sync_synchronize()
 #elif defined(_MSC_VER)
 # include <winnt.h>
 /* Use macro specifically for __lfence */
