@@ -26,12 +26,19 @@ extern "C" {
 /* hardware memory barrier */
 #if defined (__APPLE__)
 # include <libkern/OSAtomic.h>
-# define fuqMemoryBarrier() OSMemoryBarrier()
+# define fuq__read_barrier() OSMemoryBarrier()
 #elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-# define fuqMemoryBarrier() __sync_synchronize()
+/* Prefer assembly to prevent full memory barrier */
+# if defined( __i386__ ) || defined( __i486__ ) || defined( __i586__ ) || \
+     defined( __i686__ ) || defined( __x86_64__ )
+#   define fuq__read_barrier() __asm__ __volatile__ ("lfence":::"memory")
+# else
+#   define fuq__read_barrier() __sync_synchronize()
+# endif
 #elif defined(_MSC_VER)
 # include <winnt.h>
-# define fuqMemoryBarrier() MemoryBarrier()
+/* Use macro specifically for __lfence */
+# define fuq__read_barrier() PreFetchCacheLine
 #else
 # error "Hardware memory barrier support not implemented on this system"
 #endif
@@ -72,7 +79,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   volatile fuq__array* tail_stor;
 
   tail_stor = queue->tail_stor;
-  fuqMemoryBarrier();
+  fuq__read_barrier();
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
@@ -97,7 +104,7 @@ static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   (*queue->tail_stor)[1] = array;
   queue->max_stor += 1;
 
-  fuqMemoryBarrier();
+  fuq__read_barrier();
   queue->tail_stor = (volatile fuq__array*) array;
 }
 
@@ -134,7 +141,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
 
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
-    fuqMemoryBarrier();
+    fuq__read_barrier();
     queue->tail = (volatile void**) tail;
     return;
   }
@@ -145,7 +152,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   queue->tail_idx = 0;
 
   tail = &(**array);
-  fuqMemoryBarrier();
+  fuq__read_barrier();
   queue->tail = (volatile void**) tail;
 }
 
@@ -156,7 +163,7 @@ static inline void* fuq_shift(fuq_queue* queue) {
   void* ret;
 
   tail = queue->tail;
-  fuqMemoryBarrier();
+  fuq__read_barrier();
 
   if (queue->head == (void**) tail)
     return NULL;
@@ -182,7 +189,7 @@ static inline int fuq_empty(fuq_queue* queue) {
   volatile void** tail;
 
   tail = queue->tail;
-  fuqMemoryBarrier();
+  fuq__read_barrier();
 
   return queue->head == (void**) tail;
 }
@@ -211,7 +218,7 @@ static inline void fuq_dispose(fuq_queue* queue) {
 }
 
 
-#undef fuqMemoryBarrier
+#undef fuq__read_barrier
 #undef FUQ_ARRAY_SIZE
 #undef FUQ_MAX_STOR
 
