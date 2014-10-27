@@ -110,8 +110,8 @@ static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   (*queue->tail_stor)[1] = array;
   queue->max_stor += 1;
 
-  write_barrier();
   queue->tail_stor = (volatile fuq__array*) array;
+  write_barrier();
 }
 
 
@@ -147,8 +147,8 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
 
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
-    write_barrier();
     queue->tail = (volatile void**) tail;
+    write_barrier();
     return;
   }
 
@@ -158,8 +158,8 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   queue->tail_idx = 0;
 
   tail = &(**array);
-  write_barrier();
   queue->tail = (volatile void**) tail;
+  write_barrier();
 }
 
 
@@ -192,10 +192,8 @@ static inline void* fuq_shift(fuq_queue* queue) {
 
 
 static inline int fuq_empty(fuq_queue* queue) {
-  volatile void** tail;
-
-  tail = queue->tail;
-  write_barrier();
+  volatile void** tail = queue->tail;
+  read_barrier();
   return queue->head == (void**) tail;
 }
 
