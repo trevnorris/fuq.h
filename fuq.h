@@ -84,8 +84,8 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   fuq__array* array;
   volatile fuq__array* tail_stor;
 
-  tail_stor = queue->tail_stor;
   read_barrier();
+  tail_stor = queue->tail_stor;
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
@@ -168,8 +168,8 @@ static inline void* fuq_shift(fuq_queue* queue) {
   volatile void** tail;
   void* ret;
 
-  tail = queue->tail;
   read_barrier();
+  tail = queue->tail;
 
   if (queue->head == (void**) tail)
     return NULL;
@@ -192,8 +192,10 @@ static inline void* fuq_shift(fuq_queue* queue) {
 
 
 static inline int fuq_empty(fuq_queue* queue) {
-  volatile void** tail = queue->tail;
+  volatile void** tail;
+
   read_barrier();
+  tail= queue->tail;
   return queue->head == (void**) tail;
 }
 
