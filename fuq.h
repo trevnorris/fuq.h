@@ -19,38 +19,40 @@ extern "C" {
 #include <stdlib.h>  /* malloc, free */
 #include <stdio.h>   /* fprintf, fflush */
 
+/* Prevent warnings when compiled with --std=gnu89 -pedantic */
 #if defined (__STRICT_ANSI__) || defined (__GNUC_GNU_INLINE__)
 # define inline __inline__
 #endif
 
+/* x86 (32 and 64 bit) architectures */
 #if defined(__i386) || defined(_M_IX86) || \
     defined(__x86_64__) || defined(_M_X64)
-# define read_barrier() __asm__ __volatile__ ("lfence":::"memory")
+# define read_barrier()  __asm__ __volatile__ ("lfence":::"memory")
 # define write_barrier() __asm__ __volatile__ ("sfence":::"memory")
+/* ARM64 */
 #elif defined(__aarch64__)
-# define read_barrier() __asm__ __volatile__ ("dmb ishld":::"memory")
+# define read_barrier()  __asm__ __volatile__ ("dmb ishld":::"memory")
 # define write_barrier() __asm__ __volatile__ ("dmb ishst":::"memory")
+/* 32 and 64 bit Power architectures */
 #elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__) || \
       defined(__powerpc64__) || defined(__ppc64__) || defined(__PPC64__)
-void read_barrier(void);
-void write_barrier(void);
-#pragma mc_func read_barrier  { "7c2004ac" }  /* lwsync */
-#pragma mc_func write_barrier { "4c00012c" }  /* isync */
+# define read_barrier()  __asm__ __volatile__ ("sync":::"memory")
+# define write_barrier() __asm__ __volatile__ ("sync":::"memory")
 /* Otherwise try using compiler defined */
 #elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-# define read_barrier() __sync_synchronize()
+# define read_barrier()  __sync_synchronize()
 # define write_barrier() __sync_synchronize()
 #elif defined(_MSC_VER)
-# include <winnt.h>
-/* Use macro specifically for __lfence */
-# define read_barrier() PreFetchCacheLine
-# define write_barrier() MemoryBarrier()
+# include <windows.h>
+# define read_barrier()  _ReadBarrier()
+# define write_barrier() _WriteBarrier()
 #else
 # error "Hardware memory barrier support not implemented on this system"
 #endif
 
-#define FUQ_ARRAY_SIZE 511
-#define FUQ_MAX_STOR 1024
+/* Usual page size minus 1 */
+#define FUQ_ARRAY_SIZE 4095
+#define FUQ_MAX_STOR 256
 
 /* The last slot is reserved as a pointer to the next fuq__array. */
 typedef void* fuq__array[FUQ_ARRAY_SIZE + 1];
