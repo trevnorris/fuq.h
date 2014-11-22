@@ -24,30 +24,21 @@ extern "C" {
 # define inline __inline__
 #endif
 
-/* x86 (32 and 64 bit) architectures */
-#if defined(__i386) || defined(_M_IX86) || \
-    defined(__x86_64__) || defined(_M_X64)
-# define read_barrier()  __asm__ __volatile__ ("lfence":::"memory")
-# define write_barrier() __asm__ __volatile__ ("sfence":::"memory")
-/* ARM64 */
-#elif defined(__aarch64__)
-# define read_barrier()  __asm__ __volatile__ ("dmb ishld":::"memory")
-# define write_barrier() __asm__ __volatile__ ("dmb ishst":::"memory")
-/* 32 and 64 bit Power architectures */
+/* Include atomic ops for specific architectures and compilers */
+#if defined(_MSC_VER)
+#include "defs/fuq_win.h"
 #elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__) || \
       defined(__powerpc64__) || defined(__ppc64__) || defined(__PPC64__)
-# define read_barrier()  __asm__ __volatile__ ("sync":::"memory")
-# define write_barrier() __asm__ __volatile__ ("sync":::"memory")
-/* Otherwise try using compiler defined */
+#include "defs/fuq_ppc.h"
+#elif defined(__aarch64__)
+#include "defs/fuq_arm64.h"
+#elif defined(__i386) || defined(_M_IX86) || \
+      defined(__x86_64__) || defined(_M_X64)
+#include "defs/fuq_x86_32_64.h"
 #elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-# define read_barrier()  __sync_synchronize()
-# define write_barrier() __sync_synchronize()
-#elif defined(_MSC_VER)
-# include <windows.h>
-# define read_barrier()  _ReadBarrier()
-# define write_barrier() _WriteBarrier()
+#include "defs/fuq_gnuc_generic.h"
 #else
-# error "Hardware memory barrier support not implemented on this system"
+#error "No supported memory barrier options for this build"
 #endif
 
 /* Usual page size minus 1 */
@@ -86,7 +77,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   fuq__array* array;
   volatile fuq__array* tail_stor;
 
-  read_barrier();
+  fuq__fetch_barrier();
   tail_stor = queue->tail_stor;
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
@@ -113,7 +104,7 @@ static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   queue->max_stor += 1;
 
   queue->tail_stor = (volatile fuq__array*) array;
-  write_barrier();
+  fuq__store_barrier();
 }
 
 
@@ -150,7 +141,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
     queue->tail = (volatile void**) tail;
-    write_barrier();
+    fuq__store_barrier();
     return;
   }
 
@@ -161,7 +152,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
 
   tail = &(**array);
   queue->tail = (volatile void**) tail;
-  write_barrier();
+  fuq__store_barrier();
 }
 
 
@@ -170,7 +161,7 @@ static inline void* fuq_shift(fuq_queue* queue) {
   volatile void** tail;
   void* ret;
 
-  read_barrier();
+  fuq__fetch_barrier();
   tail = queue->tail;
 
   if (queue->head == (void**) tail)
@@ -196,7 +187,7 @@ static inline void* fuq_shift(fuq_queue* queue) {
 static inline int fuq_empty(fuq_queue* queue) {
   volatile void** tail;
 
-  read_barrier();
+  fuq__fetch_barrier();
   tail= queue->tail;
   return queue->head == (void**) tail;
 }
@@ -225,8 +216,6 @@ static inline void fuq_dispose(fuq_queue* queue) {
 }
 
 
-#undef read_barrier
-#undef write_barrier
 #undef FUQ_ARRAY_SIZE
 #undef FUQ_MAX_STOR
 
