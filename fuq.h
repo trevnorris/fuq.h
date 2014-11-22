@@ -55,10 +55,10 @@ typedef struct {
   int tail_idx;
   /* These are key to allowing single atomic operations. */
   void** head;
-  volatile void** tail;
+  void** tail;
   /* Storage containers for unused allocations. */
   fuq__array* head_stor;
-  volatile fuq__array* tail_stor;
+  fuq__array* tail_stor;
   /* Number of fuq__array's currently stored. */
   int max_stor;
 } fuq_queue;
@@ -75,7 +75,7 @@ static inline void fuq__check_oom(void* pntr) {
 
 static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
   fuq__array* array;
-  volatile fuq__array* tail_stor;
+  fuq__array* tail_stor;
 
   fuq__fetch_barrier();
   tail_stor = queue->tail_stor;
@@ -103,7 +103,7 @@ static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   (*queue->tail_stor)[1] = array;
   queue->max_stor += 1;
 
-  queue->tail_stor = (volatile fuq__array*) array;
+  queue->tail_stor = array;
   fuq__store_barrier();
 }
 
@@ -124,9 +124,9 @@ static inline void fuq_init(fuq_queue* queue) {
   queue->head_idx = 0;
   queue->tail_idx = 0;
   queue->head = &(**array);
-  queue->tail = (volatile void**) &(**array);
+  queue->tail = &(**array);
   queue->head_stor = stor;
-  queue->tail_stor = (volatile fuq__array*) stor;
+  queue->tail_stor = stor;
   queue->max_stor = 0;
 }
 
@@ -140,7 +140,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
 
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
-    queue->tail = (volatile void**) tail;
+    queue->tail = (void**) tail;
     fuq__store_barrier();
     return;
   }
@@ -151,14 +151,14 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   queue->tail_idx = 0;
 
   tail = &(**array);
-  queue->tail = (volatile void**) tail;
+  queue->tail = (void**) tail;
   fuq__store_barrier();
 }
 
 
 static inline void* fuq_shift(fuq_queue* queue) {
   fuq__array* next_array;
-  volatile void** tail;
+  void** tail;
   void* ret;
 
   fuq__fetch_barrier();
@@ -185,7 +185,7 @@ static inline void* fuq_shift(fuq_queue* queue) {
 
 
 static inline int fuq_empty(fuq_queue* queue) {
-  volatile void** tail;
+  void** tail;
 
   fuq__fetch_barrier();
   tail= queue->tail;
