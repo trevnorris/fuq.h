@@ -3,11 +3,11 @@
 
 #if defined(__GNUC__)
 
-static inline void fuq__fetch_barrier(void) {
+static inline void fuq__read_barrier(void) {
   __asm__ __volatile__  ("lwsync":::"memory");
 }
 
-static inline void fuq__store_barrier(void) {
+static inline void fuq__write_barrier(void) {
   __asm__ __volatile__  ("eieio":::"memory");
 }
 
@@ -15,8 +15,8 @@ static inline void fuq__store_barrier(void) {
 
 /* The following taken from
  * http://www.ibm.com/developerworks/systems/articles/powerpc.html#N103E8 */
-#pragma mc_func fuq__fetch_barrier { "7c2004ac" }  /* lwsync */
-#pragma mc_func fuq__store_barrier { "4c00012c" }  /* isync  */
+#pragma mc_func fuq__read_barrier { "7c2004ac" }  /* lwsync */
+#pragma mc_func fuq__write_barrier { "4c00012c" }  /* isync  */
 
 #else
 #error "No supported memory barrier options for this build"

@@ -24,7 +24,7 @@ extern "C" {
 # define inline __inline__
 #endif
 
-/* Include atomic ops for specific architectures and compilers */
+/* Include atomic ops for specific compilers and architectures */
 #if defined(_MSC_VER)
 #include "defs/fuq_win.h"
 #elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__) || \
@@ -43,7 +43,8 @@ extern "C" {
 
 /* Usual page size minus 1 */
 #define FUQ_ARRAY_SIZE 4095
-#define FUQ_MAX_STOR 256
+/* Single queue is allowed max of 32KB memory retention */
+#define FUQ_MAX_STOR 4
 
 /* The last slot is reserved as a pointer to the next fuq__array. */
 typedef void* fuq__array[FUQ_ARRAY_SIZE + 1];
@@ -61,7 +62,7 @@ typedef struct {
   fuq__array* tail_stor;
   /* Number of fuq__array's currently stored. */
   int max_stor;
-} fuq_queue;
+} fuq_queue_t;
 
 
 static inline void fuq__check_oom(void* pntr) {
@@ -73,11 +74,11 @@ static inline void fuq__check_oom(void* pntr) {
 }
 
 
-static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
+static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
   fuq__array* array;
   fuq__array* tail_stor;
 
-  fuq__fetch_barrier();
+  fuq__read_barrier();
   tail_stor = queue->tail_stor;
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
@@ -93,7 +94,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue* queue) {
 }
 
 
-static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
+static inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
   if (FUQ_MAX_STOR > queue->max_stor) {
     free((void*) array);
     return;
@@ -104,11 +105,11 @@ static inline void fuq__free_array(fuq_queue* queue, fuq__array* array) {
   queue->max_stor += 1;
 
   queue->tail_stor = array;
-  fuq__store_barrier();
+  fuq__write_barrier();
 }
 
 
-static inline void fuq_init(fuq_queue* queue) {
+static inline void fuq_init(fuq_queue_t* queue) {
   fuq__array* array;
   fuq__array* stor;
 
@@ -131,7 +132,7 @@ static inline void fuq_init(fuq_queue* queue) {
 }
 
 
-static inline void fuq_push(fuq_queue* queue, void* arg) {
+static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   fuq__array* array;
   void* tail;
 
@@ -141,7 +142,7 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
     queue->tail = (void**) tail;
-    fuq__store_barrier();
+    fuq__write_barrier();
     return;
   }
 
@@ -152,18 +153,19 @@ static inline void fuq_push(fuq_queue* queue, void* arg) {
 
   tail = &(**array);
   queue->tail = (void**) tail;
-  fuq__store_barrier();
+  fuq__write_barrier();
 }
 
 
-static inline void* fuq_shift(fuq_queue* queue) {
+static inline void* fuq_dequeue(fuq_queue_t* queue) {
   fuq__array* next_array;
   void** tail;
   void* ret;
 
-  fuq__fetch_barrier();
+  fuq__read_barrier();
   tail = queue->tail;
 
+  fuq__read_barrier();
   if (queue->head == (void**) tail)
     return NULL;
 
@@ -184,17 +186,18 @@ static inline void* fuq_shift(fuq_queue* queue) {
 }
 
 
-static inline int fuq_empty(fuq_queue* queue) {
+static inline int fuq_empty(fuq_queue_t* queue) {
   void** tail;
 
-  fuq__fetch_barrier();
-  tail= queue->tail;
+  fuq__read_barrier();
+  tail = queue->tail;
+  fuq__read_barrier();
   return queue->head == (void**) tail;
 }
 
 
 /* Useful for cleanup at end of applications life to make valgrind happy. */
-static inline void fuq_dispose(fuq_queue* queue) {
+static inline void fuq_dispose(fuq_queue_t* queue) {
   void* next_array;
 
   while (queue->head_array != queue->tail_array) {

@@ -28,22 +28,22 @@ struct timespec ts_diff(struct timespec start, struct timespec end) {
 
 
 static void* task_runner(void* arg) {
-  fuq_queue* queue;
+  fuq_queue_t* queue;
   struct timespec ts_s;
   struct timespec ts_f;
   uint64_t i;
 
   clock_gettime(CLOCK_MONOTONIC, &ts_s);
 
-  queue = (fuq_queue*) arg;
+  queue = (fuq_queue_t*) arg;
   for (i = 1; i < ITER; i++) {
-    fuq_push(queue, (void*) i);
+    fuq_enqueue(queue, (void*) i);
   }
 
   clock_gettime(CLOCK_MONOTONIC, &ts_f);
   ts_f= ts_diff(ts_s, ts_f);
   fprintf(stderr,
-          "%zi push/sec\n",
+          "spawned: %zi enqueue/sec\n",
           (unsigned long) (ITER / (ts_f.tv_sec + ts_f.tv_nsec / NS)));
 
   return NULL;
@@ -51,8 +51,8 @@ static void* task_runner(void* arg) {
 
 
 int main(void) {
-  fuq_queue queue0;
-  fuq_queue queue1;
+  fuq_queue_t queue0;
+  fuq_queue_t queue1;
   pthread_t thread0;
   pthread_t thread1;
   struct timespec ts_s;
@@ -72,9 +72,9 @@ int main(void) {
 
   for (i = 1; i < ITER; i++) {
     check += i;
-    if (NULL != (tmp = fuq_shift(&queue0)))
+    if (NULL != (tmp = fuq_dequeue(&queue0)))
       sum0 += (uint64_t) tmp;
-    if (NULL != (tmp = fuq_shift(&queue1)))
+    if (NULL != (tmp = fuq_dequeue(&queue1)))
       sum1 += (uint64_t) tmp;
   }
 
@@ -85,16 +85,16 @@ int main(void) {
   assert(pthread_join(thread1, NULL) == 0);
 
   fprintf(stderr,
-          "%zi push/sec\n",
+          "parent:  %zi dequeue/sec\n\n",
           (unsigned long) (2 * ITER / (ts_f.tv_sec + ts_f.tv_nsec / NS)));
   fprintf(stderr, "check: %" PRIu64 "\n", check);
   fprintf(stderr, "sum0:  %" PRIu64 "\n", sum0);
   fprintf(stderr, "sum1:  %" PRIu64 "\n", sum1);
 
   while (!fuq_empty(&queue0))
-    sum0 += (uint64_t) fuq_shift(&queue0);
+    sum0 += (uint64_t) fuq_dequeue(&queue0);
   while (!fuq_empty(&queue1))
-    sum1 += (uint64_t) fuq_shift(&queue1);
+    sum1 += (uint64_t) fuq_dequeue(&queue1);
 
   fprintf(stderr, "sum0:  %" PRIu64 "\n", sum0);
   fprintf(stderr, "sum1:  %" PRIu64 "\n", sum1);
