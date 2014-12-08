@@ -136,6 +136,15 @@ static inline void fuq_init(fuq_queue_t* queue) {
 }
 
 
+static inline int fuq_empty(fuq_queue_t* queue) {
+  void** tail;
+  fuq__read_barrier();
+  tail = queue->tail;
+  fuq__read_barrier();
+  return queue->head == (void**) tail;
+}
+
+
 static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   fuq__array* array;
   void* tail;
@@ -163,14 +172,9 @@ static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
 
 static inline void* fuq_dequeue(fuq_queue_t* queue) {
   fuq__array* next_array;
-  void** tail;
   void* ret;
 
-  fuq__read_barrier();
-  tail = queue->tail;
-
-  fuq__read_barrier();
-  if (queue->head == (void**) tail)
+  if (fuq_empty(queue))
     return NULL;
 
   ret = *queue->head;
@@ -187,16 +191,6 @@ static inline void* fuq_dequeue(fuq_queue_t* queue) {
   queue->head_idx = 0;
 
   return ret;
-}
-
-
-static inline int fuq_empty(fuq_queue_t* queue) {
-  void** tail;
-
-  fuq__read_barrier();
-  tail = queue->tail;
-  fuq__read_barrier();
-  return queue->head == (void**) tail;
 }
 
 
