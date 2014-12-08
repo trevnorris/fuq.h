@@ -65,6 +65,7 @@ typedef struct {
 } fuq_queue_t;
 
 
+#if defined(DEBUG)
 static inline void fuq__check_oom(void* pntr) {
   if (NULL != pntr)
     return;
@@ -72,6 +73,9 @@ static inline void fuq__check_oom(void* pntr) {
   fflush(stderr);
   abort();
 }
+#else
+static inline void fuq__check_oom(void* pntr) { }
+#endif
 
 
 static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
