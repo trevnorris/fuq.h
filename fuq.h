@@ -56,10 +56,10 @@ typedef struct {
   int tail_idx;
   /* These are key to allowing single atomic operations. */
   void** head;
-  void** tail;
+  volatile void** tail;
   /* Storage containers for unused allocations. */
   fuq__array* head_stor;
-  fuq__array* tail_stor;
+  volatile fuq__array* tail_stor;
   /* Number of fuq__array's currently stored. */
   int max_stor;
 } fuq_queue_t;
@@ -80,7 +80,7 @@ static inline void fuq__check_oom(void* pntr) { }
 
 static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
   fuq__array* array;
-  fuq__array* tail_stor;
+  volatile fuq__array* tail_stor;
 
   fuq__read_barrier();
   tail_stor = queue->tail_stor;
@@ -108,7 +108,7 @@ static inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
   (*queue->tail_stor)[1] = array;
   queue->max_stor += 1;
 
-  queue->tail_stor = array;
+  queue->tail_stor = (volatile fuq__array*) array;
   fuq__write_barrier();
 }
 
@@ -129,15 +129,15 @@ static inline void fuq_init(fuq_queue_t* queue) {
   queue->head_idx = 0;
   queue->tail_idx = 0;
   queue->head = &(**array);
-  queue->tail = &(**array);
+  queue->tail = (volatile void**) &(**array);
   queue->head_stor = stor;
-  queue->tail_stor = stor;
+  queue->tail_stor = (volatile fuq__array*) stor;
   queue->max_stor = 0;
 }
 
 
 static inline int fuq_empty(fuq_queue_t* queue) {
-  void** tail;
+  volatile void** tail;
   fuq__read_barrier();
   tail = queue->tail;
   fuq__read_barrier();
@@ -147,14 +147,14 @@ static inline int fuq_empty(fuq_queue_t* queue) {
 
 static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   fuq__array* array;
-  void* tail;
+  volatile void* tail;
 
   *queue->tail = arg;
   queue->tail_idx += 1;
 
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
-    queue->tail = (void**) tail;
+    queue->tail = (volatile void**) tail;
     fuq__write_barrier();
     return;
   }
@@ -165,7 +165,7 @@ static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   queue->tail_idx = 0;
 
   tail = &(**array);
-  queue->tail = (void**) tail;
+  queue->tail = (volatile void**) tail;
   fuq__write_barrier();
 }
 
