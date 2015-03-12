@@ -67,8 +67,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
   fuq__array* array;
   volatile fuq__array* tail_stor;
 
-  fuq__read_barrier();
-  tail_stor = queue->tail_stor;
+  FUQ_LOAD_PTR(tail_stor, queue->tail_stor);
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
@@ -93,8 +92,7 @@ static inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
   (*queue->tail_stor)[1] = array;
   queue->max_stor += 1;
 
-  queue->tail_stor = (volatile fuq__array*) array;
-  fuq__write_barrier();
+  FUQ_STORE_PTR(queue->tail_stor, (volatile fuq__array*) array);
 }
 
 
@@ -123,8 +121,8 @@ static inline void fuq_init(fuq_queue_t* queue) {
 
 static inline int fuq_empty(fuq_queue_t* queue) {
   volatile void** tail;
-  fuq__read_barrier();
-  tail = queue->tail;
+  int is_equal;
+  FUQ_LOAD_PTR(tail, queue->tail);
   fuq__read_barrier();
   return queue->head == (void**) tail;
 }
@@ -139,8 +137,7 @@ static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
 
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
     tail = &((*queue->tail_array)[queue->tail_idx]);
-    queue->tail = (volatile void**) tail;
-    fuq__write_barrier();
+    FUQ_STORE_PTR(queue->tail, (volatile void**) tail);
     return;
   }
 
@@ -150,8 +147,7 @@ static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   queue->tail_idx = 0;
 
   tail = &(**array);
-  queue->tail = (volatile void**) tail;
-  fuq__write_barrier();
+  FUQ_STORE_PTR(queue->tail, (volatile void**) tail);
 }
 
 
@@ -205,6 +201,7 @@ static inline void fuq_dispose(fuq_queue_t* queue) {
 #undef FUQ_ARRAY_SIZE
 #undef FUQ_CHECK_OOM
 #undef FUQ_MAX_STOR
+#undef FUQ_STORE_PTR
 
 #ifdef __cplusplus
 }

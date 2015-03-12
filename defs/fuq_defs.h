@@ -18,4 +18,19 @@
 #error "No supported memory barrier options for this build"
 #endif
 
+
+#define FUQ_LOAD_PTR(var, exp)                                                \
+  do {                                                                        \
+    fuq__read_barrier();                                                      \
+    (var) = (exp);                                                            \
+  } while (0)
+
+
+#define FUQ_STORE_PTR(queue, ptr)                                             \
+  do {                                                                        \
+    (queue) = (ptr);                                                          \
+    fuq__write_barrier();                                                     \
+  } while (0)
+
+
 #endif  /* FUQ_DEFS_ */
