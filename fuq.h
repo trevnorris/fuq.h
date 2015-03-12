@@ -24,22 +24,7 @@ extern "C" {
 # define inline __inline__
 #endif
 
-/* Include atomic ops for specific compilers and architectures */
-#if defined(_MSC_VER)
-#include "defs/fuq_win.h"
-#elif defined(__powerpc__) || defined(__ppc__) || defined(__PPC__) || \
-      defined(__powerpc64__) || defined(__ppc64__) || defined(__PPC64__)
-#include "defs/fuq_ppc.h"
-#elif defined(__aarch64__)
-#include "defs/fuq_arm64.h"
-#elif defined(__i386) || defined(_M_IX86) || \
-      defined(__x86_64__) || defined(_M_X64)
-#include "defs/fuq_x86_32_64.h"
-#elif (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1)
-#include "defs/fuq_gnuc_generic.h"
-#else
-#error "No supported memory barrier options for this build"
-#endif
+#include "defs/fuq_defs.h"
 
 /* Usual page size minus 1 */
 #define FUQ_ARRAY_SIZE 4095
