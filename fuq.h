@@ -51,15 +51,15 @@ typedef struct {
 
 
 #if defined(DEBUG)
-static inline void fuq__check_oom(void* pntr) {
-  if (NULL != pntr)
-    return;
-  fprintf(stderr, "FATAL: OOM - %s:%i\n", __FILE__, __LINE__);
-  fflush(stderr);
-  abort();
-}
+#define FUQ_CHECK_OOM(pntr)                                                   \
+  do {                                                                        \
+    if (NULL != pntr) continue;                                               \
+    fprintf(stderr, "FATAL: OOM - %s:%i\n", __FILE__, __LINE__);              \
+    fflush(stderr);                                                           \
+    abort();                                                                  \
+  } while (0)
 #else
-static inline void fuq__check_oom(void* pntr) { }
+#define FUQ_CHECK_OOM(pntr)
 #endif
 
 
@@ -72,7 +72,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
 
   if ((fuq__array*) tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
-    fuq__check_oom(array);
+    FUQ_CHECK_OOM(array);
   } else {
     array = queue->head_stor;
     queue->head_stor = (fuq__array*) (*array)[1];
@@ -103,9 +103,9 @@ static inline void fuq_init(fuq_queue_t* queue) {
   fuq__array* stor;
 
   array = (fuq__array*) malloc(sizeof(*array));
-  fuq__check_oom(array);
+  FUQ_CHECK_OOM(array);
   stor = (fuq__array*) malloc(sizeof(*stor));
-  fuq__check_oom(stor);
+  FUQ_CHECK_OOM(stor);
   /* Initialize in case fuq_dispose() is called immediately after fuq_init(). */
   (*stor)[1] = NULL;
 
@@ -203,6 +203,7 @@ static inline void fuq_dispose(fuq_queue_t* queue) {
 
 
 #undef FUQ_ARRAY_SIZE
+#undef FUQ_CHECK_OOM
 #undef FUQ_MAX_STOR
 
 #ifdef __cplusplus
