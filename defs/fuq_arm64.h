@@ -3,11 +3,11 @@
 
 #if defined(__GNUC__)
 
-static inline void fuq__read_barrier(void) {
+static _fuq_inline void fuq__read_barrier(void) {
   __asm__ __volatile__ ("dmb ishld":::"memory");
 }
 
-static inline void fuq__write_barrier(void) {
+static _fuq_inline void fuq__write_barrier(void) {
   __asm__ __volatile__ ("dmb ishst":::"memory");
 }
 

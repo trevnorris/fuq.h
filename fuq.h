@@ -21,7 +21,9 @@ extern "C" {
 
 /* Prevent warnings when compiled with --std=gnu89 -pedantic */
 #if defined (__STRICT_ANSI__) || defined (__GNUC_GNU_INLINE__)
-# define inline __inline__
+# define _fuq_inline __inline__
+#else
+# define _fuq_inline inline
 #endif
 
 #include "defs/fuq_defs.h"
@@ -63,7 +65,7 @@ typedef struct {
 #endif
 
 
-static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
+static _fuq_inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
   fuq__array* array;
   volatile fuq__array* tail_stor;
 
@@ -82,7 +84,7 @@ static inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
 }
 
 
-static inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
+static _fuq_inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
   if (FUQ_MAX_STOR > queue->max_stor) {
     free((void*) array);
     return;
@@ -96,7 +98,7 @@ static inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
 }
 
 
-static inline void fuq_init(fuq_queue_t* queue) {
+static _fuq_inline void fuq_init(fuq_queue_t* queue) {
   fuq__array* array;
   fuq__array* stor;
 
@@ -119,14 +121,14 @@ static inline void fuq_init(fuq_queue_t* queue) {
 }
 
 
-static inline int fuq_empty(fuq_queue_t* queue) {
+static _fuq_inline int fuq_empty(fuq_queue_t* queue) {
   volatile void** tail;
   FUQ_LOAD_PTR(tail, queue->tail);
   return queue->head == (void**) tail;
 }
 
 
-static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
+static _fuq_inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   fuq__array* array;
   volatile void* tail;
 
@@ -149,7 +151,7 @@ static inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
 }
 
 
-static inline void* fuq_dequeue(fuq_queue_t* queue) {
+static _fuq_inline void* fuq_dequeue(fuq_queue_t* queue) {
   fuq__array* next_array;
   void* ret;
 
@@ -174,7 +176,7 @@ static inline void* fuq_dequeue(fuq_queue_t* queue) {
 
 
 /* Useful for cleanup at end of applications life to make valgrind happy. */
-static inline void fuq_dispose(fuq_queue_t* queue) {
+static _fuq_inline void fuq_dispose(fuq_queue_t* queue) {
   void* next_array;
 
   while (queue->head_array != queue->tail_array) {

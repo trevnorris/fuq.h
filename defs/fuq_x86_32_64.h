@@ -14,11 +14,11 @@
  * instructions should be responsible for ensuring proper ordering
  * itself.  So our read and write barriers may be implemented as simple
  * compiler barriers. */
-static inline void fuq__read_barrier(void) {
+static _fuq_inline void fuq__read_barrier(void) {
   __asm__ __volatile__ ("":::"memory");
 }
 
-static inline void fuq__write_barrier(void) {
+static _fuq_inline void fuq__write_barrier(void) {
   __asm__ __volatile__ ("":::"memory");
 }
 

@@ -7,11 +7,11 @@
 #if (_MSC_VER >= 1700)
 #include <atomic>
 
-static inline void fuq__read_barrier(void) {
+static _fuq_inline void fuq__read_barrier(void) {
   std::atomic_thread_fence(std::memory_order_acquire);
 }
 
-static inline void fuq__write_barrier(void) {
+static _fuq_inline void fuq__write_barrier(void) {
   std::atomic_thread_fence(std::memory_order_release);
 }
 
@@ -19,11 +19,11 @@ static inline void fuq__write_barrier(void) {
 #elif (_MSC_VER >= 1500)
 #include <intrin.h>
 
-static inline void fuq__read_barrier(void) {
+static _fuq_inline void fuq__read_barrier(void) {
   _ReadBarrier();
 }
 
-static inline void fuq__write_barrier(void) {
+static _fuq_inline void fuq__write_barrier(void) {
   _WriteBarrier();
 }
 
