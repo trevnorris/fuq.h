@@ -121,9 +121,7 @@ static inline void fuq_init(fuq_queue_t* queue) {
 
 static inline int fuq_empty(fuq_queue_t* queue) {
   volatile void** tail;
-  int is_equal;
   FUQ_LOAD_PTR(tail, queue->tail);
-  fuq__read_barrier();
   return queue->head == (void**) tail;
 }
 
