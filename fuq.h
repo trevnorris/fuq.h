@@ -2,36 +2,50 @@
  * fuq - a Fundamentally Unstable Queue
  *
  * fuq handles single consumer, single producer scenarios where only one
- * thread is pushing data to the queue and another is shifting out.
+ * thread is pushing data to the queue and another is shifting data out.
  *
  * There is the case of a "false negative". Meaning an item can be in process
  * of being pushed into the queue while the other end is shifting data out
- * and receives NULL. Indicating that the queue is empty.
+ * and receives NULL, indicating that the queue is empty.
  */
 
 #ifndef FUQ_H_
 #define FUQ_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdlib.h>  /* malloc, free */
+#include <stdlib.h>  /* malloc, free, abort */
+#if defined(DEBUG)
 #include <stdio.h>   /* fprintf, fflush */
+#endif
 
 /* Prevent warnings when compiled with --std=gnu89 -pedantic */
 #if defined (__STRICT_ANSI__) || defined (__GNUC_GNU_INLINE__)
-# define _fuq_inline __inline__
+# define fuq__inline __inline__
 #else
-# define _fuq_inline inline
+# define fuq__inline inline
 #endif
 
+/* Selects the synchronization back end and pulls in <stdatomic.h> or the C++
+ * <atomic> template header. Kept outside the extern "C" block below because
+ * <atomic> must not be declared with C language linkage. */
 #include "defs/fuq_defs.h"
 
-/* Usual page size minus 1 */
+#ifndef FUQ_ARRAY_SIZE
+/* Number of usable slots in a slab. The slab holds FUQ_ARRAY_SIZE + 1
+ * pointers; the final slot links to the next slab. The default rounds the
+ * allocation out to 4096 pointers (32 KiB on a 64-bit target). Override by
+ * defining FUQ_ARRAY_SIZE before including fuq.h. */
 #define FUQ_ARRAY_SIZE 4095
-/* Single queue is allowed max of 32KB memory retention */
+#endif
+
+#ifndef FUQ_MAX_STOR
+/* Maximum number of unused slabs a single queue will pool for reuse before
+ * releasing them back to the allocator. Override before including fuq.h. */
 #define FUQ_MAX_STOR 4
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* The last slot is reserved as a pointer to the next fuq__array. */
 typedef void* fuq__array[FUQ_ARRAY_SIZE + 1];
@@ -41,14 +55,16 @@ typedef struct {
   fuq__array* tail_array;
   int head_idx;
   int tail_idx;
-  /* These are key to allowing single atomic operations. */
+  /* Published queue cursor. The producer publishes tail; the consumer
+   * observes it. head is only ever touched by the consumer. */
   void** head;
-  volatile void** tail;
-  /* Storage containers for unused allocations. */
+  FUQ_ATOMIC(void**) tail;
+  /* Free list of unused slabs, run as a reverse SPSC channel: the consumer
+   * publishes tail_stor, the producer observes it and pops from head_stor. */
   fuq__array* head_stor;
-  volatile fuq__array* tail_stor;
-  /* Number of fuq__array's currently stored. */
-  int max_stor;
+  FUQ_ATOMIC(fuq__array*) tail_stor;
+  /* Number of fuq__array's currently pooled (relaxed counter). */
+  FUQ_ATOMIC_INT max_stor;
 } fuq_queue_t;
 
 
@@ -65,40 +81,43 @@ typedef struct {
 #endif
 
 
-static _fuq_inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
+static fuq__inline fuq__array* fuq__alloc_array(fuq_queue_t* queue) {
   fuq__array* array;
-  volatile fuq__array* tail_stor;
+  fuq__array* tail_stor;
 
-  FUQ_LOAD_PTR(tail_stor, queue->tail_stor);
+  tail_stor = (fuq__array*) FUQ_LOAD_ACQ(&queue->tail_stor);
 
-  if ((fuq__array*) tail_stor == queue->head_stor) {
+  if (tail_stor == queue->head_stor) {
     array = (fuq__array*) malloc(sizeof(*array));
     FUQ_CHECK_OOM(array);
   } else {
     array = queue->head_stor;
     queue->head_stor = (fuq__array*) (*array)[1];
-    queue->max_stor -= 1;
+    FUQ_CTR_SUB(&queue->max_stor, 1);
   }
 
   return array;
 }
 
 
-static _fuq_inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
-  if (FUQ_MAX_STOR > queue->max_stor) {
+static fuq__inline void fuq__free_array(fuq_queue_t* queue, fuq__array* array) {
+  fuq__array* tail_stor;
+
+  /* Pool is full: release the slab back to the allocator. */
+  if (FUQ_CTR_LOAD(&queue->max_stor) >= FUQ_MAX_STOR) {
     free((void*) array);
     return;
   }
 
   (*array)[1] = NULL;
-  (*queue->tail_stor)[1] = array;
-  queue->max_stor += 1;
-
-  FUQ_STORE_PTR(queue->tail_stor, (volatile fuq__array*) array);
+  tail_stor = (fuq__array*) FUQ_LOAD_RLX(&queue->tail_stor);
+  (*tail_stor)[1] = array;
+  FUQ_CTR_ADD(&queue->max_stor, 1);
+  FUQ_STORE_REL(&queue->tail_stor, array);
 }
 
 
-static _fuq_inline void fuq_init(fuq_queue_t* queue) {
+static fuq__inline void fuq_init(fuq_queue_t* queue) {
   fuq__array* array;
   fuq__array* stor;
 
@@ -114,30 +133,31 @@ static _fuq_inline void fuq_init(fuq_queue_t* queue) {
   queue->head_idx = 0;
   queue->tail_idx = 0;
   queue->head = &(**array);
-  queue->tail = (volatile void**) &(**array);
+  FUQ_INIT(&queue->tail, &(**array));
   queue->head_stor = stor;
-  queue->tail_stor = (volatile fuq__array*) stor;
-  queue->max_stor = 0;
+  FUQ_INIT(&queue->tail_stor, stor);
+  FUQ_INIT(&queue->max_stor, 0);
 }
 
 
-static _fuq_inline int fuq_empty(fuq_queue_t* queue) {
-  volatile void** tail;
-  FUQ_LOAD_PTR(tail, queue->tail);
-  return queue->head == (void**) tail;
+static fuq__inline int fuq_empty(fuq_queue_t* queue) {
+  void** tail;
+  tail = (void**) FUQ_LOAD_ACQ(&queue->tail);
+  return queue->head == tail;
 }
 
 
-static _fuq_inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
+static fuq__inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   fuq__array* array;
-  volatile void* tail;
+  void** tail;
 
-  *queue->tail = arg;
+  /* The producer is the sole writer of tail, so a relaxed load is enough. */
+  tail = (void**) FUQ_LOAD_RLX(&queue->tail);
+  *tail = arg;
   queue->tail_idx += 1;
 
   if (FUQ_ARRAY_SIZE > queue->tail_idx) {
-    tail = &((*queue->tail_array)[queue->tail_idx]);
-    FUQ_STORE_PTR(queue->tail, (volatile void**) tail);
+    FUQ_STORE_REL(&queue->tail, &((*queue->tail_array)[queue->tail_idx]));
     return;
   }
 
@@ -145,13 +165,11 @@ static _fuq_inline void fuq_enqueue(fuq_queue_t* queue, void* arg) {
   (*queue->tail_array)[queue->tail_idx] = (void*) array;
   queue->tail_array = array;
   queue->tail_idx = 0;
-
-  tail = &(**array);
-  FUQ_STORE_PTR(queue->tail, (volatile void**) tail);
+  FUQ_STORE_REL(&queue->tail, &(**array));
 }
 
 
-static _fuq_inline void* fuq_dequeue(fuq_queue_t* queue) {
+static fuq__inline void* fuq_dequeue(fuq_queue_t* queue) {
   fuq__array* next_array;
   void* ret;
 
@@ -176,7 +194,7 @@ static _fuq_inline void* fuq_dequeue(fuq_queue_t* queue) {
 
 
 /* Useful for cleanup at end of applications life to make valgrind happy. */
-static _fuq_inline void fuq_dispose(fuq_queue_t* queue) {
+static fuq__inline void fuq_dispose(fuq_queue_t* queue) {
   void* next_array;
 
   while (queue->head_array != queue->tail_array) {
@@ -199,9 +217,18 @@ static _fuq_inline void fuq_dispose(fuq_queue_t* queue) {
 
 
 #undef FUQ_ARRAY_SIZE
-#undef FUQ_CHECK_OOM
 #undef FUQ_MAX_STOR
-#undef FUQ_STORE_PTR
+#undef FUQ_CHECK_OOM
+#undef FUQ_ATOMIC
+#undef FUQ_ATOMIC_INT
+#undef FUQ_INIT
+#undef FUQ_LOAD_ACQ
+#undef FUQ_STORE_REL
+#undef FUQ_LOAD_RLX
+#undef FUQ_STORE_RLX
+#undef FUQ_CTR_LOAD
+#undef FUQ_CTR_ADD
+#undef FUQ_CTR_SUB
 
 #ifdef __cplusplus
 }
